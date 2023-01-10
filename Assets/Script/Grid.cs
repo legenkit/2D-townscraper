@@ -7,6 +7,7 @@ public class Grid : MonoBehaviour
 {
     public GameObject Tile;
     public GridLocation Cordinates;
+    public int Tilevalue = -1;
 
     public void SelectThisGrid()
     {
@@ -15,5 +16,10 @@ public class Grid : MonoBehaviour
     public void DeselectThisGrid()
     {
 
+    }
+
+    public void FlipTileHor()
+    {
+        Tile.transform.rotation = Quaternion.Euler(0, 180, 0);
     }
 }
