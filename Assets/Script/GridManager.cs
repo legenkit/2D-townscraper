@@ -93,14 +93,17 @@ public class GridManager : MonoBehaviour
 
     void DrawTile(GridLocation pos)
     {
+
+        if (pos.y > 0) DestroyPillerSupport(new GridLocation(pos.x, pos.y - 1));
         DestroyTile(pos);
-        GenerateTile(pos);
+        GenerateTile(pos, true);
+        if (pos.y > 0) AddPillerSupport(new GridLocation(pos.x, pos.y - 1));
     }
 
-    void GenerateTile(GridLocation pos)
+    void GenerateTile(GridLocation pos, bool main)
     {
         // Updating GridData
-        _gridData[pos.x, pos.y] = 1;
+        if (main) _gridData[pos.x, pos.y] = 1;
 
         // Instantiating The Tile
         _gridArray[pos.x, pos.y].Tile = Instantiate(Tiles[_gridArray[pos.x, pos.y].Tilevalue = TileToGenerate(_gridArray[pos.x, pos.y].Cordinates)],
@@ -146,34 +149,73 @@ public class GridManager : MonoBehaviour
             }
             return 0;
         }
-        return Random.Range(2, Tiles.Length);
+
+        if (SearchGridData(pos, new byte[] { 5, 0, 5, 0, 1, 0, 5, 5, 5 }))
+        {
+            return 2;
+        }
+
+        if (SearchGridData(pos, new byte[] { 5, 0, 5, 1, 1, 0, 5, 5, 5 }) || SearchGridData(pos, new byte[] { 5, 0, 5, 0, 1, 1, 5, 5, 5 }))
+        {
+            return 3;
+        }
+        if (SearchGridData(pos, new byte[] { 5, 0, 5, 1, 1, 1, 5, 5, 5 }) || SearchGridData(pos, new byte[] { 5, 1, 5, 1, 1, 1, 5, 5, 5 }))
+        {
+            return 4;
+        }
+        if (SearchGridData(pos, new byte[] { 5, 1, 5, 5, 1, 0, 5, 5, 5 }) || SearchGridData(pos, new byte[] { 5, 1, 5, 0, 1, 5, 5, 5, 5 }))
+        {
+            return 5;
+        }
+        return Random.Range(6, Tiles.Length);
     }
 
     void UpdateNeighourTile(GridLocation pos)
     {
-        if (pos.x < Width - 1 && _gridData[pos.x + 1, pos.y] == 1) 
+        if (pos.x < Width - 1 && _gridData[pos.x + 1, pos.y] == 1)
             DrawTile(new GridLocation(pos.x + 1, pos.y));
 
-        if (pos.x > 0 && _gridData[pos.x - 1, pos.y] == 1) 
+        if (pos.x > 0 && _gridData[pos.x - 1, pos.y] == 1)
             DrawTile(new GridLocation(pos.x - 1, pos.y));
 
-        if (pos.y < Height - 1 && _gridData[pos.x, pos.y + 1] == 1) 
+        if (pos.y < Height - 1 && _gridData[pos.x, pos.y + 1] == 1)
             DrawTile(new GridLocation(pos.x, pos.y + 1));
 
-        if (pos.y > 0 && _gridData[pos.x, pos.y - 1] == 1) 
+        if (pos.y > 0 && _gridData[pos.x, pos.y - 1] == 1)
             DrawTile(new GridLocation(pos.x, pos.y - 1));
+    }
+
+    void AddPillerSupport(GridLocation pos)
+    {
+        if (pos.y == -1 || _gridData[pos.x, pos.y] != 0)
+        {
+            return;
+        }
+        GenerateTile(pos, false);
+        AddPillerSupport(new GridLocation(pos.x, pos.y - 1));
+    }
+    void DestroyPillerSupport(GridLocation pos)
+    {
+        if (pos.y == -1 || _gridData[pos.x, pos.y] != 0)
+        {
+            return;
+        }
+        DestroyTile(pos);
+        DestroyPillerSupport(new GridLocation(pos.x, pos.y - 1));
     }
 
     bool SearchGridData(GridLocation pos, byte[] Pattern)
     {
         int count = 0;
         int ind = 0;
-        for (int y = -1; y < 2; y++)
+        for (int y = 1; y >= -1; y--)
         {
-            for (int x = -1; x < 2; x++)
+            for (int x = 1; x >= -1; x--)
             {
                 if (Pattern[ind] == _gridData[pos.x + x, pos.y + y] || Pattern[ind] == 5)
+                {
                     count++;
+                }
                 ind++;
             }
         }

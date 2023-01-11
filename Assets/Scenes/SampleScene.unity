@@ -161,19 +161,19 @@ MonoBehaviour:
     y: -1
   - x: 0
     y: 1
-  Width: 10
-  Height: 8
+  Width: 21
+  Height: 9
   TileSize: 1
   Grid: {fileID: 5572793861352248194, guid: 68c9a8b250546ad4a8e5325a30a4703b, type: 3}
   TileHolder: {fileID: 1324808676}
   Tiles:
   - {fileID: 872481659659102483, guid: 08c037c4084e1624d84f8850f1276862, type: 3}
   - {fileID: 2667474190055378696, guid: 6db5ff21e156396468a14edd8030bac6, type: 3}
-  - {fileID: 3469583680938968120, guid: 0969005b207470046a2061ac54ddc8f2, type: 3}
   - {fileID: 1665010724055446706, guid: 320d37398f8fe0046b91e329cbd83217, type: 3}
-  - {fileID: 5823693447751186473, guid: 7f9ff0cbb67a54048824457383eb3fe9, type: 3}
+  - {fileID: 3469583680938968120, guid: 0969005b207470046a2061ac54ddc8f2, type: 3}
   - {fileID: 6505615662958816789, guid: 60147b725c91bf546a26b460592074b0, type: 3}
   - {fileID: 6171201113991951575, guid: fcc1e479d0fa9204b92deaba9953f81c, type: 3}
+  - {fileID: 5823693447751186473, guid: 7f9ff0cbb67a54048824457383eb3fe9, type: 3}
 --- !u!4 &36580651
 Transform:
   m_ObjectHideFlags: 0
