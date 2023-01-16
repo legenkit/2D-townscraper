@@ -9,15 +9,6 @@ public class Grid : MonoBehaviour
     public GridLocation Cordinates;
     public int Tilevalue = -1;
 
-    public void SelectThisGrid()
-    {
-
-    }
-    public void DeselectThisGrid()
-    {
-
-    }
-
     public void FlipTileHor()
     {
         Tile.transform.rotation = Quaternion.Euler(0, 180, 0);

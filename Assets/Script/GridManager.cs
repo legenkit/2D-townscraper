@@ -23,6 +23,7 @@ public class GridManager : MonoBehaviour
     [Header("Reference")]
     [SerializeField] GameObject Grid;
     [SerializeField] Transform TileHolder;
+    [SerializeField] GameObject CursorIcon;
 
     [Header("ModularTile")]
     public GameObject[] Tiles;
@@ -32,6 +33,18 @@ public class GridManager : MonoBehaviour
     byte[,] _gridData;
 
     Grid _selectedGrid;
+
+    Vector3 CameraPos;
+    Vector3 MouseCurrentPos = Vector3.zero;
+    Vector3 MouseLastPos = Vector3.zero;
+
+    #region Cursor VAR
+
+    #endregion
+    Vector2 origin;
+    RaycastHit2D mouseRay;
+
+    GameObject CurrentGrid = null;
     #endregion
     #endregion
     void Awake()
@@ -48,7 +61,7 @@ public class GridManager : MonoBehaviour
             for (int j = 0; j < Height; j++)
             {
                 _gridData[i, j] = 0;
-                Vector3 pos = new Vector3(i * TileSize - Width / 2, j * TileSize - Height / 2, 0);
+                Vector3 pos = new Vector3(i * TileSize - Width / 2, j * TileSize - 4, 0);
                 GameObject tile = Instantiate(Grid, pos, Quaternion.identity, this.transform);
                 _gridArray[i, j] = tile.GetComponent<Grid>();
                 _gridArray[i, j].Tilevalue = -1;
@@ -64,17 +77,28 @@ public class GridManager : MonoBehaviour
 
     void MyInput()
     {
+        //Cursor
+        {
+            origin = new Vector2(Camera.main.ScreenToWorldPoint(Input.mousePosition).x,
+                                          Camera.main.ScreenToWorldPoint(Input.mousePosition).y);
+            mouseRay = Physics2D.Raycast(origin, Vector2.zero, 0f);
+            if (mouseRay && mouseRay.collider.CompareTag("Grid"))
+            {
+                if (CurrentGrid != null && CurrentGrid != mouseRay.collider.gameObject)
+                {
+                    CurrentGrid = mouseRay.collider.gameObject;
+                    CursorIcon.transform.DOMove(CurrentGrid.transform.position, .1f).SetEase(Ease.OutBack);
+                }
+                CurrentGrid = mouseRay.collider.gameObject;
+            }
+        }
+
         if (Input.GetMouseButtonDown(0) || Input.GetMouseButtonDown(1))
         {
-            if (_selectedGrid != null) _selectedGrid.DeselectThisGrid();
-
-            Vector2 origin = new Vector2(Camera.main.ScreenToWorldPoint(Input.mousePosition).x,
-                                          Camera.main.ScreenToWorldPoint(Input.mousePosition).y);
-            RaycastHit2D mouseRay = Physics2D.Raycast(origin, Vector2.zero, 0f);
             if (mouseRay && mouseRay.collider.CompareTag("Grid"))
             {
                 _selectedGrid = mouseRay.collider.GetComponent<Grid>();
-                DoScaleTween(_selectedGrid.transform.transform, 0.45f);
+                DoScaleTween(CursorIcon.transform, 1);
 
                 if (Input.GetMouseButtonDown(0))
                 {
@@ -85,11 +109,51 @@ public class GridManager : MonoBehaviour
                 else
                 {
                     DestroyTile(_selectedGrid.Cordinates);
+
+                    UpdateNeighourTile(_selectedGrid.Cordinates);
+
+                    //Updating Supporing Pillers if the structure needs piller
+                    bool canUpdatePillers = _gridData[_selectedGrid.Cordinates.x, _selectedGrid.Cordinates.y + 1] == 2 ||
+                                            (_gridData[_selectedGrid.Cordinates.x, _selectedGrid.Cordinates.y - 1] == 2 &&
+                                            _gridData[_selectedGrid.Cordinates.x, _selectedGrid.Cordinates.y + 1] == 1);
+
+                    DestroyPillerSupport(new GridLocation(_selectedGrid.Cordinates.x, _selectedGrid.Cordinates.y - 1));
+                    if (canUpdatePillers) AddPillerSupport(_selectedGrid.Cordinates, true);
+
                 }
 
             }
         }
+
+        // Map Movement
+        {
+            if (Input.GetMouseButtonDown(2))
+            {
+                MouseLastPos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+            }
+            if (Input.GetMouseButton(2))
+            {
+                MouseCurrentPos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+                CameraPos = Camera.main.transform.position;
+                CameraPos += MouseLastPos - MouseCurrentPos;
+                CameraPos.z = Camera.main.transform.position.z;
+                Camera.main.transform.position = CameraPos;
+                MouseLastPos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+            }
+        }
+        // ZoomIn and ZoomOut
+        {
+            if (Input.mouseScrollDelta.y > 0 && Camera.main.orthographicSize > 3)
+            {
+                Camera.main.DOOrthoSize(Camera.main.orthographicSize * 0.9f, .2f);
+            }
+            else if (Input.mouseScrollDelta.y < 0 && Camera.main.orthographicSize < 12)
+            {
+                Camera.main.DOOrthoSize(Camera.main.orthographicSize * 1.1f, .2f);
+            }
+        }
     }
+
 
     void DrawTile(GridLocation pos)
     {
@@ -97,7 +161,7 @@ public class GridManager : MonoBehaviour
         if (pos.y > 0) DestroyPillerSupport(new GridLocation(pos.x, pos.y - 1));
         DestroyTile(pos);
         GenerateTile(pos, true);
-        if (pos.y > 0) AddPillerSupport(new GridLocation(pos.x, pos.y - 1));
+        if (pos.y > 0) AddPillerSupport(new GridLocation(pos.x, pos.y - 1), true);
     }
 
     void GenerateTile(GridLocation pos, bool main)
@@ -106,18 +170,14 @@ public class GridManager : MonoBehaviour
         if (main) _gridData[pos.x, pos.y] = 1;
 
         // Instantiating The Tile
-        _gridArray[pos.x, pos.y].Tile = Instantiate(Tiles[_gridArray[pos.x, pos.y].Tilevalue = TileToGenerate(_gridArray[pos.x, pos.y].Cordinates)],
-            _gridArray[pos.x, pos.y].transform.position, Quaternion.identity, TileHolder);
+        Tile tile = TileToGenerate(_gridArray[pos.x, pos.y].Cordinates);
+        _gridArray[pos.x, pos.y].Tile = Instantiate(Tiles[tile.ind], _gridArray[pos.x, pos.y].transform.position, Quaternion.identity, TileHolder);
 
         // Checking condition to Flip the Instantiated Tile
-        if (_gridData[_gridArray[pos.x, pos.y].Cordinates.x + 1, _gridArray[pos.x, pos.y].Cordinates.y] == 1)
+        if ((tile.canflip == -1 && _gridData[_gridArray[pos.x, pos.y].Cordinates.x + 1, _gridArray[pos.x, pos.y].Cordinates.y] == 1) || tile.canflip == 1)
         {
             _gridArray[pos.x, pos.y].FlipTileHor();
         }
-
-        // Making Grid Sprite Disappear
-        _gridArray[pos.x, pos.y].transform.GetComponent<SpriteRenderer>().enabled = false;
-        _gridArray[pos.x, pos.y].SelectThisGrid();
 
         DoScaleTween(_gridArray[pos.x, pos.y].Tile.transform, 1);
     }
@@ -133,41 +193,152 @@ public class GridManager : MonoBehaviour
         // Clearing Reference from GRID script
         _gridArray[pos.x, pos.y].Tilevalue = -1;
         _gridArray[pos.x, pos.y].Tile = null;
-
-
-        _gridArray[pos.x, pos.y].transform.GetComponent<SpriteRenderer>().enabled = true;
-        _gridArray[pos.x, pos.y].SelectThisGrid();
     }
 
-    int TileToGenerate(GridLocation pos)
+    Tile TileToGenerate(GridLocation pos)
     {
+        //Pillers
         if (pos.y == 0)
         {
             if (CountHorNeighbour(pos) == 1)
             {
-                return 1;
+                return new Tile(1, -1);
             }
-            return 0;
+            return new Tile(0);
         }
 
-        if (SearchGridData(pos, new byte[] { 5, 0, 5, 0, 1, 0, 5, 5, 5 }))
+        //House
+        if (SearchGridData(pos, new byte[] { 5, 0, 5, 4, 1, 4, 5, 5, 5 }))
         {
-            return 2;
+            return new Tile(2);
         }
 
-        if (SearchGridData(pos, new byte[] { 5, 0, 5, 1, 1, 0, 5, 5, 5 }) || SearchGridData(pos, new byte[] { 5, 0, 5, 0, 1, 1, 5, 5, 5 }))
+        //House Wall
+        if (SearchGridData(pos, new byte[] { 5, 0, 5, 1, 1, 4, 5, 5, 5 }))
         {
-            return 3;
+            return new Tile(3, 1);
         }
-        if (SearchGridData(pos, new byte[] { 5, 0, 5, 1, 1, 1, 5, 5, 5 }) || SearchGridData(pos, new byte[] { 5, 1, 5, 1, 1, 1, 5, 5, 5 }))
+        if (SearchGridData(pos, new byte[] { 5, 0, 5, 4, 1, 1, 5, 5, 5 }))
         {
-            return 4;
+            return new Tile(3);
         }
-        if (SearchGridData(pos, new byte[] { 5, 1, 5, 5, 1, 0, 5, 5, 5 }) || SearchGridData(pos, new byte[] { 5, 1, 5, 0, 1, 5, 5, 5, 5 }))
+
+        //House Top
+        if (SearchGridData(pos, new byte[] { 5, 0, 5, 1, 1, 1, 5, 5, 5 }))
         {
-            return 5;
+            return new Tile(4);
         }
-        return Random.Range(6, Tiles.Length);
+
+        // House Piller
+        if (SearchGridData(pos, new byte[] { 5, 2, 5, 4, 1, 4, 5, 5, 5 }))
+        {
+            return new Tile(5);
+        }
+
+        // House Wall Piller
+        if (SearchGridData(pos, new byte[] { 5, 2, 5, 1, 1, 4, 5, 5, 5 }))
+        {
+            return new Tile(6, 1);
+        }
+        if (SearchGridData(pos, new byte[] { 5, 2, 5, 4, 1, 1, 5, 5, 5 }))
+        {
+            return new Tile(6);
+        }
+
+        // House Piller
+        if (SearchGridData(pos, new byte[] { 5, 2, 5, 1, 1, 1, 5, 5, 5 }))
+        {
+            return new Tile(7);
+        }
+
+        // wall
+        if (SearchGridData(pos, new byte[] { 5, 1, 4, 1, 1, 4, 5, 5, 5 }))
+        {
+            return new Tile(8, 1);
+        }
+        if (SearchGridData(pos, new byte[] { 4, 1, 5, 4, 1, 1, 5, 5, 5 }))
+        {
+            return new Tile(8);
+        }
+
+        // wall TR
+        if (SearchGridData(pos, new byte[] { 5, 1, 1, 1, 1, 4, 5, 5, 5 }))
+        {
+            return new Tile(9, 1);
+        }
+        if (SearchGridData(pos, new byte[] { 1, 1, 5, 4, 1, 1, 5, 5, 5 }))
+        {
+            return new Tile(9);
+        }
+
+        // Box
+        if (SearchGridData(pos, new byte[] { 1, 1, 1, 1, 1, 1, 5, 5, 5 }))
+        {
+            return new Tile(10);
+        }
+
+        // Box TR
+        if (SearchGridData(pos, new byte[] { 4, 1, 1, 1, 1, 1, 5, 5, 5 }))
+        {
+            return new Tile(11);
+        }
+        if (SearchGridData(pos, new byte[] { 1, 1, 4, 1, 1, 1, 5, 5, 5 }))
+        {
+            return new Tile(11, 1);
+        }
+
+        // Box TLR
+        if (SearchGridData(pos, new byte[] { 4, 5, 4, 1, 1, 1, 5, 5, 5 }))
+        {
+            return new Tile(12);
+        }
+
+        // House Support
+        if (SearchGridData(pos, new byte[] { 4, 1, 4, 4, 1, 4, 5, 5, 5 }))
+        {
+            return new Tile(13);
+        }
+
+        // House Support TR
+        if (SearchGridData(pos, new byte[] { 4, 1, 1, 4, 1, 4, 5, 5, 5 }))
+        {
+            return new Tile(14);
+        }
+        if (SearchGridData(pos, new byte[] { 1, 1, 4, 4, 1, 4, 5, 5, 5 }))
+        {
+            return new Tile(14, 1);
+        }
+
+        // House Support TLR
+        if (SearchGridData(pos, new byte[] { 1, 1, 1, 4, 1, 4, 5, 5, 5 }))
+        {
+            return new Tile(15);
+        }
+
+        //Piller
+        if (_gridData[pos.x, pos.y + 1] == 1)
+        {
+            return new Tile(16);
+        }
+        return new Tile(17);
+    }
+
+    bool SearchGridData(GridLocation pos, byte[] Pattern)
+    {
+        int count = 0;
+        int ind = 0;
+        for (int y = 1; y >= -1; y--)
+        {
+            for (int x = 1; x >= -1; x--)
+            {
+                if (Pattern[ind] == _gridData[pos.x + x, pos.y + y] || Pattern[ind] == 5 || (Pattern[ind] == 4 && _gridData[pos.x + x, pos.y + y] != 1))
+                {
+                    count++;
+                }
+                ind++;
+            }
+        }
+        return count == 9;
     }
 
     void UpdateNeighourTile(GridLocation pos)
@@ -185,41 +356,41 @@ public class GridManager : MonoBehaviour
             DrawTile(new GridLocation(pos.x, pos.y - 1));
     }
 
-    void AddPillerSupport(GridLocation pos)
+    void AddPillerSupport(GridLocation pos, bool canterminate)
     {
-        if (pos.y == -1 || _gridData[pos.x, pos.y] != 0)
+        bool AllowedToBuild = canterminate && ((_gridData[pos.x + 1, pos.y] == 2 && _gridData[pos.x + 1, pos.y + 1] == 1) ||
+                              (_gridData[pos.x - 1, pos.y] == 2 && _gridData[pos.x - 1, pos.y + 1] == 1));
+
+        if (pos.y == -1 || _gridData[pos.x, pos.y] == 1 || AllowedToBuild)
         {
+            if (pos.y > 0 && _gridData[pos.x, pos.y] == 1)
+            {
+                DrawTile(pos);
+            }
             return;
         }
-        GenerateTile(pos, false);
-        AddPillerSupport(new GridLocation(pos.x, pos.y - 1));
+
+        if (pos.y == 0)
+        {
+            DrawTile(pos);
+            UpdateNeighourTile(pos);
+        }
+        else
+        {
+            _gridData[pos.x, pos.y] = 2;
+            GenerateTile(pos, false);
+        }
+        AddPillerSupport(new GridLocation(pos.x, pos.y - 1), false);
     }
     void DestroyPillerSupport(GridLocation pos)
     {
-        if (pos.y == -1 || _gridData[pos.x, pos.y] != 0)
+        if (pos.y == -1 || _gridData[pos.x, pos.y] != 2)
         {
             return;
         }
+        _gridData[pos.x, pos.y] = 0;
         DestroyTile(pos);
         DestroyPillerSupport(new GridLocation(pos.x, pos.y - 1));
-    }
-
-    bool SearchGridData(GridLocation pos, byte[] Pattern)
-    {
-        int count = 0;
-        int ind = 0;
-        for (int y = 1; y >= -1; y--)
-        {
-            for (int x = 1; x >= -1; x--)
-            {
-                if (Pattern[ind] == _gridData[pos.x + x, pos.y + y] || Pattern[ind] == 5)
-                {
-                    count++;
-                }
-                ind++;
-            }
-        }
-        return count == 9;
     }
 
     public int CountHorNeighbour(GridLocation pos)
@@ -272,6 +443,18 @@ public class GridLocation
     {
         this.x = x;
         this.y = y;
+    }
+}
+
+public class Tile
+{
+    public int ind;
+    public int canflip;
+
+    public Tile(int index, int flip = 0)
+    {
+        ind = index;
+        canflip = flip;
     }
 }
 
