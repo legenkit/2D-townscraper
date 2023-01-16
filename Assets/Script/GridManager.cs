@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using DG.Tweening;
+using UnityEngine.UI;
 
 public class GridManager : MonoBehaviour
 {
@@ -38,13 +39,15 @@ public class GridManager : MonoBehaviour
     Vector3 MouseCurrentPos = Vector3.zero;
     Vector3 MouseLastPos = Vector3.zero;
 
-    #region Cursor VAR
+    GameObject CurrentGrid = null;
 
-    #endregion
+    #region Cursor VAR
     Vector2 origin;
     RaycastHit2D mouseRay;
+    #endregion
 
-    GameObject CurrentGrid = null;
+    Color currentColor = Color.white;
+
     #endregion
     #endregion
     void Awake()
@@ -64,7 +67,6 @@ public class GridManager : MonoBehaviour
                 Vector3 pos = new Vector3(i * TileSize - Width / 2, j * TileSize - 4, 0);
                 GameObject tile = Instantiate(Grid, pos, Quaternion.identity, this.transform);
                 _gridArray[i, j] = tile.GetComponent<Grid>();
-                _gridArray[i, j].Tilevalue = -1;
                 tile.GetComponent<Grid>().Cordinates = new GridLocation(i, j);
             }
         }
@@ -105,21 +107,29 @@ public class GridManager : MonoBehaviour
                     DrawTile(_selectedGrid.Cordinates);
                     //Updating Neighbouring Tile
                     UpdateNeighourTile(_selectedGrid.Cordinates);
+
+                    AudioManager.instance.PlayAudioClip(AudioManager.AudioType.Create);
                 }
                 else
                 {
-                    DestroyTile(_selectedGrid.Cordinates);
+                    if(_gridData[_selectedGrid.Cordinates.x, _selectedGrid.Cordinates.y] == 1)
+                    {
+                        DestroyTile(_selectedGrid.Cordinates);
 
-                    UpdateNeighourTile(_selectedGrid.Cordinates);
+                        UpdateNeighourTile(_selectedGrid.Cordinates);
 
-                    //Updating Supporing Pillers if the structure needs piller
-                    bool canUpdatePillers = _gridData[_selectedGrid.Cordinates.x, _selectedGrid.Cordinates.y + 1] == 2 ||
-                                            (_gridData[_selectedGrid.Cordinates.x, _selectedGrid.Cordinates.y - 1] == 2 &&
-                                            _gridData[_selectedGrid.Cordinates.x, _selectedGrid.Cordinates.y + 1] == 1);
+                        //Updating Supporing Pillers if the structure needs piller
+                        bool canUpdatePillers = _gridData[_selectedGrid.Cordinates.x, _selectedGrid.Cordinates.y + 1] == 2 ||
+                                                (_gridData[_selectedGrid.Cordinates.x, _selectedGrid.Cordinates.y - 1] == 2 &&
+                                                _gridData[_selectedGrid.Cordinates.x, _selectedGrid.Cordinates.y + 1] == 1);
 
-                    DestroyPillerSupport(new GridLocation(_selectedGrid.Cordinates.x, _selectedGrid.Cordinates.y - 1));
-                    if (canUpdatePillers) AddPillerSupport(_selectedGrid.Cordinates, true);
+                        DestroyPillerSupport(new GridLocation(_selectedGrid.Cordinates.x, _selectedGrid.Cordinates.y - 1));
+                        if (canUpdatePillers) AddPillerSupport(_selectedGrid.Cordinates, true);
 
+
+                        AudioManager.instance.PlayAudioClip(AudioManager.AudioType.Destroy);
+                    }
+                    
                 }
 
             }
@@ -173,6 +183,7 @@ public class GridManager : MonoBehaviour
         Tile tile = TileToGenerate(_gridArray[pos.x, pos.y].Cordinates);
         _gridArray[pos.x, pos.y].Tile = Instantiate(Tiles[tile.ind], _gridArray[pos.x, pos.y].transform.position, Quaternion.identity, TileHolder);
 
+        _gridArray[pos.x, pos.y].Tile.GetComponentInChildren<SpriteRenderer>().color = currentColor;
         // Checking condition to Flip the Instantiated Tile
         if ((tile.canflip == -1 && _gridData[_gridArray[pos.x, pos.y].Cordinates.x + 1, _gridArray[pos.x, pos.y].Cordinates.y] == 1) || tile.canflip == 1)
         {
@@ -190,8 +201,7 @@ public class GridManager : MonoBehaviour
         // Destroying Tile
         if (_gridArray[pos.x, pos.y].Tile != null) Destroy(_gridArray[pos.x, pos.y].Tile);
 
-        // Clearing Reference from GRID script
-        _gridArray[pos.x, pos.y].Tilevalue = -1;
+        // Clearing Reference from GRID script        
         _gridArray[pos.x, pos.y].Tile = null;
     }
 
@@ -374,6 +384,7 @@ public class GridManager : MonoBehaviour
         {
             DrawTile(pos);
             UpdateNeighourTile(pos);
+
         }
         else
         {
@@ -401,29 +412,10 @@ public class GridManager : MonoBehaviour
         if (_gridData[pos.x - 1, pos.y] == 1) count++;
         return count;
     }
-    public int CountSquareNeighbours(GridLocation pos)
+
+    public void SwitchColor(Image img)
     {
-        int count = 0;
-        if (pos.x <= 0 || pos.x >= Width - 1 || pos.y <= 0 || pos.y >= Height - 1) return 5;
-        if (_gridData[pos.x, pos.y - 1] == 1) count++;
-        if (_gridData[pos.x + 1, pos.y] == 1) count++;
-        if (_gridData[pos.x - 1, pos.y] == 1) count++;
-        if (_gridData[pos.x, pos.y - 1] == 1) count++;
-        return count;
-    }
-    public int CountDiagonalNeighbours(GridLocation pos)
-    {
-        int count = 0;
-        if (pos.x <= 0 || pos.x >= Width - 1 || pos.y <= 0 || pos.y >= Height - 1) return 5;
-        if (_gridData[pos.x - 1, pos.y - 1] == 1) count++;
-        if (_gridData[pos.x + 1, pos.y + 1] == 1) count++;
-        if (_gridData[pos.x - 1, pos.y + 1] == 1) count++;
-        if (_gridData[pos.x + 1, pos.y - 1] == 1) count++;
-        return count;
-    }
-    protected int CountNeighbour(GridLocation Pos)
-    {
-        return CountSquareNeighbours(Pos) + CountDiagonalNeighbours(Pos);
+        currentColor = img.color;
     }
 
     public void DoScaleTween(Transform obj, float scale)

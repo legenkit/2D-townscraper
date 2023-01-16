@@ -7,7 +7,6 @@ public class Grid : MonoBehaviour
 {
     public GameObject Tile;
     public GridLocation Cordinates;
-    public int Tilevalue = -1;
 
     public void FlipTileHor()
     {
